@@ -10,6 +10,27 @@ function idHopLe(id) {
 
 // 1. GET: Xem chi tiet mot benh nhan
 router.get("/:id", async (req, res) => {
+    // 0. GET: Lay danh sach benh nhan
+router.get("/", async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            `SELECT id, hoten, ngaysinh, gioitinh, sdt, diachi
+             FROM BenhNhan
+             ORDER BY id`
+        );
+
+        res.json({
+            message: "Lay danh sach benh nhan thanh cong",
+            data: rows
+        });
+    } catch (error) {
+        console.error("Loi lay danh sach benh nhan:", error.message);
+
+        res.status(500).json({
+            message: "Khong the lay danh sach benh nhan"
+        });
+    }
+});
     const id = req.params.id;
 
     if (!idHopLe(id)) {
