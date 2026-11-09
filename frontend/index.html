@@ -1,1 +1,192 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý phòng khám</title>
+<style>
+:root{--bg:#f4f7f6;--card:#fff;--tx:#1d2b2a;--mut:#6b7c7a;--pri:#0f8b7d;--bd:#dde6e4;--err:#c0392b}
+@media(prefers-color-scheme:dark){:root{--bg:#121a19;--card:#1b2625;--tx:#e6efed;--mut:#8fa3a0;--pri:#2bb5a5;--bd:#2c3b39;--err:#ff7b6b}}
+*{box-sizing:border-box}
+body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{background:var(--pri);color:#fff;padding:12px 20px}
+header h1{margin:0 0 8px;font-size:20px}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:rgba(255,255,255,.18);color:#fff;border:0;padding:7px 14px;border-radius:6px;cursor:pointer}
+nav button.on{background:#fff;color:#0f6e63;font-weight:600}
+main{max-width:1000px;margin:18px auto;padding:0 14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:16px}
+.card h3{margin:0 0 10px;font-size:16px}
+form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+input,select,textarea{padding:7px 9px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);font:inherit}
+button.b{background:var(--pri);color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer}
+button.s{background:none;border:1px solid var(--bd);color:var(--tx);padding:3px 9px;border-radius:5px;cursor:pointer;font-size:13px}
+button.d{color:var(--err);border-color:var(--err)}
+.w{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+th{font-size:12px;color:var(--mut);text-transform:uppercase}
+.tag{padding:2px 8px;border-radius:10px;font-size:12px;background:var(--bd)}
+.low{color:var(--err);font-weight:600}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;color:#fff;display:none;max-width:90%}
+.item{display:flex;gap:6px;margin-bottom:6px}
+</style>
+</head>
+<body>
+<header><h1> Quản lý phòng khám</h1><nav id="nav"></nav></header>
+<main id="m"></main>
+<div id="toast"></div>
+<script>
+const $ = s => document.querySelector(s);
+const api = async (u, o = {}) => {
+  const r = await fetch('/api/' + u, { headers: { 'Content-Type': 'application/json' }, ...o, body: o.body && JSON.stringify(o.body) });
+  const d = await r.json();
+  if (!r.ok) throw Error(d.error);
+  return d;
+};
+const toast = (t, e) => { const x = $('#toast'); x.textContent = t; x.style.background = e ? '#c0392b' : '#0f8b7d'; x.style.display = 'block'; setTimeout(() => x.style.display = 'none', 3200); };
+const act = async (f, msg) => { try { await f(); if (msg) toast(msg); } catch (e) { toast(e.message, 1); } };
+const fd = f => Object.fromEntries(new FormData(f));
+const money = n => Number(n).toLocaleString('vi-VN') + ' ₫';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const opt = (a, f) => a.map(x => `<option value="${x.id}">${esc(f(x))}</option>`).join('');
+const tbl = (h, rows) => `<div class="w"><table><tr>${h.map(x => `<th>${x}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${h.length}">Chưa có dữ liệu</td></tr>`}</table></div>`;
+const today = () => new Date().toISOString().slice(0, 10);
+const L = (t, i) => `<label>${t}${i}</label>`;
+
+const T = {};
+const tabs = { bn: 'Bệnh nhân', bs: 'Bác sĩ', lk: 'Lịch khám', dt: 'Đơn thuốc', th: 'Thuốc', hd: 'Hóa đơn', tk: 'Thống kê' };
+let cur = 'bn';
+function go(k) {
+  cur = k;
+  $('#nav').innerHTML = Object.entries(tabs).map(([i, t]) => `<button class="${i === k ? 'on' : ''}" onclick="go('${i}')">${t}</button>`).join('');
+  act(T[k]);
+}
+
+// ----- Bệnh nhân -----
+T.bn = async () => {
+  const d = await api('benhnhan?q=' + encodeURIComponent($('#q')?.value || ''));
+  if (!$('#fbn')) $('#m').innerHTML = `
+    <div class="card"><h3>Thêm bệnh nhân</h3><form id="fbn">
+      ${L('Họ tên', '<input name="hoten" required>')}
+      ${L('Ngày sinh', '<input name="ngaysinh" type="date" required>')}
+      ${L('Giới tính', '<select name="gioitinh"><option>Nam</option><option>Nữ</option><option>Khác</option></select>')}
+      ${L('SĐT', '<input name="sdt">')}${L('Địa chỉ', '<input name="diachi">')}
+      <button class="b">Thêm</button></form></div>
+    <div class="card"><h3>Danh sách</h3>
+      <form id="sbn" style="margin-bottom:10px"><input id="q" placeholder="Tìm theo tên / SĐT"><button class="b">Tìm</button></form>
+      <div id="list"></div></div>`;
+  $('#list').innerHTML = tbl(['ID', 'Họ tên', 'Ngày sinh', 'Giới tính', 'SĐT', 'Địa chỉ', ''],
+    d.map(x => [x.id, esc(x.hoten), x.ngaysinh, x.gioitinh, esc(x.sdt), esc(x.diachi), `<button class="s d" onclick="delBn(${x.id})">Xóa</button>`]));
+  $('#fbn').onsubmit = e => { e.preventDefault(); act(async () => { await api('benhnhan', { method: 'POST', body: fd(e.target) }); e.target.reset(); T.bn(); }, 'Đã thêm bệnh nhân'); };
+  $('#sbn').onsubmit = e => { e.preventDefault(); act(T.bn); };
+};
+const delBn = id => confirm('Xóa bệnh nhân này?') && act(async () => { await api('benhnhan/' + id, { method: 'DELETE' }); T.bn(); }, 'Đã xóa');
+
+// ----- Bác sĩ -----
+T.bs = async () => {
+  const d = await api('bacsi');
+  $('#m').innerHTML = `
+    <div class="card"><h3>Thêm bác sĩ</h3><form id="f">
+      ${L('Họ tên', '<input name="hoten" required>')}${L('Chuyên khoa', '<input name="chuyenkhoa" required>')}${L('SĐT', '<input name="sdt">')}
+      <button class="b">Thêm</button></form></div>
+    <div class="card">${tbl(['ID', 'Họ tên', 'Chuyên khoa', 'SĐT'], d.map(x => [x.id, esc(x.hoten), esc(x.chuyenkhoa), esc(x.sdt)]))}</div>`;
+  $('#f').onsubmit = e => { e.preventDefault(); act(async () => { await api('bacsi', { method: 'POST', body: fd(e.target) }); T.bs(); }, 'Đã thêm bác sĩ'); };
+};
+
+// ----- Lịch khám + bệnh án -----
+T.lk = async () => {
+  const [bs, lk, bn] = await Promise.all([api('bacsi'), api('lichkham'), api('benhnhan')]);
+  const open = lk.filter(x => x.trangthai === 'đã đặt');
+  $('#m').innerHTML = `
+    <div class="card"><h3>Đặt lịch khám</h3><form id="f1">
+      ${L('Bác sĩ', `<select name="bacsi_id">${opt(bs, x => x.hoten + ' - ' + x.chuyenkhoa)}</select>`)}
+      ${L('Ngày giờ', '<input name="ngaygio" type="datetime-local" required>')}<button class="b">Đặt lịch</button></form></div>
+    <div class="card"><h3>Lập bệnh án (khám xong → lịch tự chuyển "đã khám")</h3><form id="f2">
+      ${L('Lịch khám', `<select name="lichkham_id">${opt(open, x => `#${x.id} ${x.ngaygio.slice(0, 16)} - ${x.bacsi}`)}</select>`)}
+      ${L('Bệnh nhân', `<select name="benhnhan_id">${opt(bn, x => `#${x.id} ${x.hoten}`)}</select>`)}
+      ${L('Chẩn đoán', '<input name="chuandoan">')}${L('Ghi chú', '<input name="ghichu">')}
+      <button class="b">Lưu bệnh án</button></form></div>
+    <div class="card"><h3>Danh sách lịch</h3>${tbl(['ID', 'Thời gian', 'Bác sĩ', 'Bệnh nhân', 'Trạng thái', ''],
+      lk.map(x => [x.id, x.ngaygio.slice(0, 16), esc(x.bacsi), esc(x.benhnhan || '—'), `<span class="tag">${x.trangthai}</span>`,
+        x.trangthai === 'đã đặt' ? `<button class="s d" onclick="huy(${x.id})">Hủy</button>` : '']))}</div>`;
+  $('#f1').onsubmit = e => { e.preventDefault(); const b = fd(e.target); b.ngaygio = b.ngaygio.replace('T', ' ') + ':00';
+    act(async () => { await api('lichkham', { method: 'POST', body: b }); T.lk(); }, 'Đã đặt lịch'); };
+  $('#f2').onsubmit = e => { e.preventDefault(); const b = fd(e.target); b.ngaykham = today();
+    act(async () => { await api('benhan', { method: 'POST', body: b }); T.lk(); }, 'Đã lập bệnh án'); };
+};
+const huy = id => act(async () => { await api(`lichkham/${id}/huy`, { method: 'PUT' }); T.lk(); }, 'Đã hủy lịch');
+
+// ----- Đơn thuốc -----
+T.dt = async () => {
+  const [ba, th, dt] = await Promise.all([api('benhan'), api('thuoc'), api('donthuoc')]);
+  const row = () => `<div class="item">
+    <select name="thuoc">${opt(th, x => `${x.ten} (tồn ${x.tonkho})`)}</select>
+    <input name="sl" type="number" min="1" value="1" style="width:70px">
+    <input name="ld" placeholder="Liều dùng" style="flex:1"></div>`;
+  $('#m').innerHTML = `
+    <div class="card"><h3>Kê đơn thuốc</h3><form id="f" style="display:block">
+      ${L('Bệnh án', `<select name="benhan_id">${opt(ba, x => `#${x.id} ${x.benhnhan} - ${x.chuandoan || ''} (${x.ngaykham})`)}</select>`)}
+      <div id="rows" style="margin:10px 0">${row()}</div>
+      <button type="button" class="s" id="add">+ Thêm thuốc</button> <button class="b">Tạo đơn</button></form></div>
+    <div class="card"><h3>Các đơn thuốc</h3>${tbl(['ID', 'Ngày', 'Bệnh nhân', 'Số loại', 'Tiền thuốc'],
+      dt.map(x => [x.id, x.ngaylap, esc(x.benhnhan), x.so_loai, money(x.tien)]))}</div>`;
+  $('#add').onclick = () => $('#rows').insertAdjacentHTML('beforeend', row());
+  $('#f').onsubmit = e => { e.preventDefault();
+    const items = [...document.querySelectorAll('#rows .item')].map(i => ({
+      thuoc_id: +i.querySelector('[name=thuoc]').value, soluong: +i.querySelector('[name=sl]').value, lieudung: i.querySelector('[name=ld]').value }));
+    act(async () => { await api('donthuoc', { method: 'POST', body: { benhan_id: e.target.benhan_id.value, items } }); T.dt(); }, 'Đã tạo đơn thuốc'); };
+};
+
+// ----- Thuốc -----
+T.th = async () => {
+  const [th, cb] = await Promise.all([api('thuoc'), api('canhbao')]);
+  $('#m').innerHTML = `
+    <div class="card"><h3>Thêm thuốc</h3><form id="f">
+      ${L('Tên', '<input name="ten" required>')}${L('Đơn vị', '<input name="donvi" required style="width:90px">')}
+      ${L('Giá bán', '<input name="giaban" type="number" min="1" required style="width:110px">')}
+      ${L('Tồn kho', '<input name="tonkho" type="number" min="0" value="0" style="width:90px">')}
+      ${L('Định mức cảnh báo', '<input name="dinhmuccanhbao" type="number" min="0" value="0" style="width:90px">')}
+      <button class="b">Thêm</button></form></div>
+    <div class="card"><h3>Kho thuốc</h3>${tbl(['ID', 'Tên', 'Đơn vị', 'Giá', 'Tồn', 'Định mức'],
+      th.map(x => [x.id, esc(x.ten), x.donvi, money(x.giaban), `<span class="${x.tonkho < x.dinhmuccanhbao ? 'low' : ''}">${x.tonkho}</span>`, x.dinhmuccanhbao]))}</div>
+    <div class="card"><h3>Cảnh báo tồn kho gần đây</h3>${tbl(['Thời gian', 'Thuốc', 'Tồn', 'Định mức', 'Ghi chú'],
+      cb.map(x => [x.thoigian, esc(x.ten), x.tonkho, x.dinhmuccanhbao, esc(x.ghichu)]))}</div>`;
+  $('#f').onsubmit = e => { e.preventDefault(); act(async () => { await api('thuoc', { method: 'POST', body: fd(e.target) }); T.th(); }, 'Đã thêm thuốc'); };
+};
+
+// ----- Hóa đơn -----
+T.hd = async () => {
+  const [hd, lk] = await Promise.all([api('hoadon'), api('lichkham')]);
+  const free = lk.filter(x => x.trangthai === 'đã khám' && !hd.some(h => h.lichkham_id === x.id));
+  $('#m').innerHTML = `
+    <div class="card"><h3>Lập hóa đơn (tiền thuốc tự tính từ đơn thuốc)</h3><form id="f">
+      ${L('Lịch đã khám', `<select name="lichkham_id">${opt(free, x => `#${x.id} ${x.benhnhan || ''} ${x.ngaygio.slice(0, 16)}`)}</select>`)}
+      ${L('Phí khám', '<input name="phikham" type="number" min="0" value="150000">')}<button class="b">Lập hóa đơn</button></form></div>
+    <div class="card"><h3>Hóa đơn</h3>${tbl(['ID', 'Bệnh nhân', 'Phí khám', 'Tiền thuốc', 'Tổng', 'Trạng thái', ''],
+      hd.map(x => { const paid = x.trangthaithanhtoan === 'đã thanh toán';
+        return [x.id, esc(x.benhnhan || '—'), money(x.phikham), money(x.tienthuoc), `<b>${money(x.tongtien)}</b>`, `<span class="tag">${x.trangthaithanhtoan}</span>`,
+          paid ? '' : `<button class="s" onclick="tinh(${x.lichkham_id})">Tính lại</button> <button class="s" onclick="pay(${x.id})">Thanh toán</button>`]; }))}</div>`;
+  $('#f').onsubmit = e => { e.preventDefault(); act(async () => { await api('hoadon', { method: 'POST', body: fd(e.target) }); T.hd(); }, 'Đã lập hóa đơn'); };
+};
+const tinh = id => act(async () => { await api(`hoadon/${id}/tinh`, { method: 'POST' }); T.hd(); }, 'Đã tính lại');
+const pay = id => act(async () => { await api(`hoadon/${id}/thanhtoan`, { method: 'POST' }); T.hd(); }, 'Đã thanh toán');
+
+// ----- Thống kê -----
+T.tk = async () => {
+  const d = new Date(), a = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  $('#m').innerHTML = `<div class="card"><h3>Doanh thu theo ngày</h3><form id="f">
+    ${L('Từ ngày', `<input name="tu" type="date" value="${a}">`)}${L('Đến ngày', `<input name="den" type="date" value="${today()}">`)}
+    <button class="b">Xem</button></form><div id="r" style="margin-top:12px"></div></div>`;
+  $('#f').onsubmit = e => { e.preventDefault(); const b = fd(e.target);
+    act(async () => { const r = await api(`thongke?tu=${b.tu}&den=${b.den}`);
+      $('#r').innerHTML = tbl(['Ngày', 'Số hóa đơn', 'Doanh thu'], r.map(x => [x.ngay, x.so_hoa_don, money(x.doanh_thu)])) +
+        `<p><b>Tổng: ${money(r.reduce((s, x) => s + Number(x.doanh_thu), 0))}</b></p>`; }); };
+};
+
+go('bn');
+</script>
+</body>
+</html>
 
