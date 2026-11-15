@@ -293,7 +293,10 @@ async function prescribe(benhanId) {
     <p class="hint">Vượt tồn kho thì cả đơn bị hủy, tồn kho không thay đổi.</p>
     <div class="foot"><button value="cancel" formnovalidate>Hủy</button><button class="primary">Lưu đơn thuốc</button></div>`,
     async dlg => {
-      const items = $$('.rx', dlg).map(r => ({ thuoc_id: +$('[name=thuoc_id]', r).value, soluong: +$('[name=soluong]', r).value, lieudung: $('[name=lieudung]', r).value }));
+      const rows = $$('.rx', dlg).map(r => ({ thuoc_id: +$('[name=thuoc_id]', r).value, soluong: +$('[name=soluong]', r).value, lieudung: $('[name=lieudung]', r).value }));
+      const gop = {};
+      rows.forEach(r => { const g = gop[r.thuoc_id]; if (g) { g.soluong += r.soluong; g.lieudung = [g.lieudung, r.lieudung].filter(Boolean).join('; '); } else gop[r.thuoc_id] = { ...r }; });
+      const items = Object.values(gop);
       await api('/donthuoc', 'POST', { benhan_id: Number(benhanId || $('[name=benhan_id]', dlg).value), items });
       toast('Đã lưu đơn thuốc, tồn kho đã được trừ.'); route();
     });
