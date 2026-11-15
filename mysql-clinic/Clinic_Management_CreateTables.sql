@@ -1,4 +1,4 @@
-CREATE DATABASE clinic_management CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS clinic_management CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE clinic_management;
 
 CREATE TABLE BenhNhan (
@@ -43,6 +43,8 @@ CREATE TABLE BenhAn (
     ghichu         VARCHAR(500),
     FOREIGN KEY (hososuckhoe_id) REFERENCES HoSoSucKhoe (id),
     FOREIGN KEY (lichkham_id) REFERENCES LichKham (id),
+    -- Rang buoc benhan_goc_id <> id khong the viet bang CHECK (MySQL cam CHECK tren cot AUTO_INCREMENT);
+    -- duoc dam nhiem boi trigger trg_KiemTraBenhAnCha_Sua.
     FOREIGN KEY (benhan_goc_id) REFERENCES BenhAn (id)
 ) ENGINE = InnoDB;
 
